@@ -1,0 +1,36 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+# Creates the web service and a Redis-compatible Key Value instance.
+# The database lives on Neon (free Postgres that doesn't expire) — you paste
+# its connection string when Render asks for DATABASE_URL.
+
+services:
+  - type: web
+    name: relay
+    runtime: python
+    plan: free
+    buildCommand: bash build.sh
+    startCommand: >-
+      cd backend &&
+      python manage.py migrate --noinput &&
+      python manage.py seed_demo &&
+      daphne -b 0.0.0.0 -p $PORT config.asgi:application
+    healthCheckPath: /api/health/
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false # paste your Neon connection string when prompted
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: relay-redis
+          property: connectionString
+
+  - type: keyvalue
+    name: relay-redis
+    plan: free
+    ipAllowList: [] # only reachable from your Render services
